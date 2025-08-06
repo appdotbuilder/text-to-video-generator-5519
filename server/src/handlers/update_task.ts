@@ -1,16 +1,44 @@
 
+import { db } from '../db';
+import { tasksTable } from '../db/schema';
 import { type UpdateTaskInput, type Task } from '../schema';
+import { eq } from 'drizzle-orm';
 
-export async function updateTask(input: UpdateTaskInput): Promise<Task> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is updating an existing task in the database.
-    // Should throw an error if task is not found.
-    return Promise.resolve({
-        id: input.id,
-        title: input.title || 'Updated Task',
-        description: input.description !== undefined ? input.description : null,
-        status: input.status || 'pending',
-        created_at: new Date(), // Would come from DB
-        updated_at: new Date() // Would be updated to current time
-    } as Task);
-}
+export const updateTask = async (input: UpdateTaskInput): Promise<Task> => {
+  try {
+    // Build update object with only provided fields
+    const updateData: Partial<typeof tasksTable.$inferInsert> = {};
+    
+    if (input.title !== undefined) {
+      updateData.title = input.title;
+    }
+    
+    if (input.description !== undefined) {
+      updateData.description = input.description;
+    }
+    
+    if (input.status !== undefined) {
+      updateData.status = input.status;
+    }
+
+    // Always update the updated_at timestamp to current time
+    updateData.updated_at = new Date();
+
+    // Update the task and return the updated record
+    const result = await db.update(tasksTable)
+      .set(updateData)
+      .where(eq(tasksTable.id, input.id))
+      .returning()
+      .execute();
+
+    // Check if task was found and updated
+    if (result.length === 0) {
+      throw new Error(`Task with id ${input.id} not found`);
+    }
+
+    return result[0];
+  } catch (error) {
+    console.error('Task update failed:', error);
+    throw error;
+  }
+};
